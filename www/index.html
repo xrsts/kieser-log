@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kieser Log</title>
+<style>
+:root{
+  --bg:#f3f1ec;--card:#fff;--ink:#1d1d1b;--ink2:#55534e;--muted:#8a877f;--line:#e4e1da;
+  --accent:#1f5fae;--accent-soft:#e6eef8;--good:#2e7d4f;--good-soft:#e2f2e8;--warn:#a2610c;--warn-soft:#fbefda;--bad:#b3261e;
+  --gA:#2a6fdb;--gB:#7b4fd6;--gC:#0e8f80;--gD:#c8467f;--gE:#d9701a;--gF:#2f8f3e;--gG:#c23a2e;--gX:#55534e;
+  --hdr1:#1a3d6e;--hdr2:#2a6fdb;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#141413;--card:#1f1f1d;--ink:#f1efe9;--ink2:#c3c0b8;--muted:#8f8c84;--line:#34332f;
+  --accent:#7fb0ef;--accent-soft:#1d2c40;--good:#7cc79a;--good-soft:#1b3326;--warn:#e6b062;--warn-soft:#3a2c17;--bad:#f08a82;
+  --gA:#7aa8f0;--gB:#ae8ff0;--gC:#4fc8b6;--gD:#ec8db6;--gE:#f0a35e;--gF:#73c97f;--gG:#f08a7e;--gX:#c3c0b8;
+  --hdr1:#0f2445;--hdr2:#1f4f9a;}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button,input,textarea,select{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,var(--hdr1),var(--hdr2));color:#fff;padding:12px 16px 0;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+h1{font-size:20px;margin:0;letter-spacing:.5px}
+h1 b{font-weight:900;letter-spacing:1.5px}
+.sub{font-size:12px;color:var(--muted)}
+header .sub{color:rgba(255,255,255,.75)}
+nav{display:flex;gap:4px;margin-top:10px}
+nav button{flex:1;border:0;background:none;padding:10px 4px;border-bottom:3px solid transparent;color:rgba(255,255,255,.7);font-weight:600;cursor:pointer}
+nav button.on{color:#fff;border-bottom-color:#ffd166}
+main{padding:14px 12px 90px;max-width:640px;margin:0 auto}
+.row{display:flex;align-items:center;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px 12px 18px;margin-bottom:10px;position:relative;overflow:hidden}
+.card.m::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--gc,var(--gX))}
+.card.done{background:var(--good-soft);border-color:var(--good)}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:54px;height:36px;padding:0 10px;border-radius:10px;background:var(--gc,var(--gX));color:var(--gt,#fff);font-size:19px;font-weight:900;letter-spacing:.5px}
+@media (prefers-color-scheme:dark){.badge{color:var(--gt,#141413)}}
+.new{font-size:11px;font-weight:800;color:#7a5200;background:#ffd166;padding:2px 7px;border-radius:6px}
+.settings{font-size:12px;color:var(--muted);margin-top:6px}
+.last{font-size:13px;color:var(--ink2);margin-top:6px}
+.last small{color:var(--muted)}
+.sug{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:4px}
+.sug.up{background:var(--good-soft);color:var(--good)}
+.sug.down{background:var(--warn-soft);color:var(--warn)}
+.sug.same{background:var(--accent-soft);color:var(--accent)}
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+.stepper{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.stepper button{width:40px;border:0;background:none;font-size:22px;cursor:pointer;color:var(--gc,var(--accent));font-weight:700}
+.stepper input{width:100%;min-width:0;border:0;background:none;text-align:center;font-size:20px;font-weight:800;padding:8px 0}
+.stepper input:focus{outline:none}
+.stepper:focus-within{border-color:var(--gc,var(--accent))}
+.kgsub{font-size:11px;color:var(--muted);text-align:center;margin-top:2px;min-height:14px}
+.note{width:100%;margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:8px 10px;font-size:14px}
+.actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--gc,var(--accent));border-color:var(--gc,var(--accent));color:var(--gt,#fff);flex:1}
+@media (prefers-color-scheme:dark){.btn.primary{color:var(--gt,#141413)}}
+.btn.ok{background:var(--good);border-color:var(--good);color:#fff;flex:1}
+@media (prefers-color-scheme:dark){.btn.ok{color:#141413}}
+.btn.danger{color:var(--bad)}
+.btn.small{padding:5px 10px;font-size:13px}
+.datebar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.datebar input{flex:1;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:9px 10px}
+.progress{margin:0 2px 6px}
+.progress .t{display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);margin-bottom:5px}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#5cc28a);border-radius:99px;transition:width .3s}
+.tempo{font-size:12px;color:var(--muted);text-align:center;margin:8px 0 14px}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;padding:7px;border-radius:8px;font-weight:600;color:var(--ink2);cursor:pointer}
+.seg button.on{background:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.seg button.on{color:#141413}}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;scrollbar-width:none}
+.chip{flex:none;border:2px solid var(--gc,var(--line));background:var(--card);color:var(--gc,var(--ink));border-radius:999px;padding:5px 12px;font-weight:800;cursor:pointer}
+.chip.on{background:var(--gc,var(--accent));color:var(--gt,#fff)}
+@media (prefers-color-scheme:dark){.chip.on{color:var(--gt,#141413)}}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;padding:6px 4px;border-bottom:1px solid var(--line)}
+td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.pos{color:var(--good);font-weight:700}
+.negv{color:var(--warn);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 10px}
+.stat{background:var(--bg);border-radius:10px;padding:8px}
+.stat .k{font-size:11px;color:var(--muted)}
+.stat .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:12px;font-weight:600}
+.stat .s{font-size:11px;color:var(--muted)}
+.chartwrap{position:relative}
+svg{display:block;width:100%;height:auto}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;padding:4px 8px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-125%);display:none}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+.sess-h{display:flex;justify-content:space-between;align-items:center}
+.sess-h b{font-size:16px}
+.est{font-size:11px;color:var(--warn);font-weight:600;margin-left:6px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px 10px;margin-top:8px;font-size:14px}
+.pill{display:inline-block;min-width:42px;text-align:center;font-weight:800;font-size:12px;color:var(--gt,#fff);background:var(--gc,var(--gX));border-radius:6px;padding:1px 5px;margin-right:4px}
+@media (prefers-color-scheme:dark){.pill{color:var(--gt,#141413)}}
+.mrow{display:flex;gap:8px;align-items:center}
+.mrow input[type=text]{width:72px;font-weight:800;border:2px solid var(--gc,var(--line));border-radius:8px;padding:6px 8px;background:var(--bg)}
+textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:8px 10px;font-size:14px;margin-top:6px}
+.switch{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);margin-left:auto}
+.status{font-size:12px;color:var(--muted);text-align:center;margin-top:18px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;display:none;z-index:20;max-width:90%}
+.confirm{display:flex;gap:6px;align-items:center;font-size:13px;flex-wrap:wrap}
+.confirm input[type=date]{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:4px 6px}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.sw{width:28px;height:28px;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
+.sw.on{box-shadow:0 0 0 2px var(--ink)}
+.sw.auto{background:conic-gradient(var(--gA),var(--gB),var(--gD),var(--gG),var(--gE),var(--gF),var(--gC),var(--gA));}
+.swc{width:34px;height:30px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px;cursor:pointer}
+.swl{font-size:11px;color:var(--muted);margin-right:2px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1><b>KIESER</b> Log</h1>
+    <span class="sub">Χρήστος · lbs</span>
+  </div>
+  <nav>
+    <button data-tab="train" class="on">Προπόνηση</button>
+    <button data-tab="hist">Ιστορικό</button>
+    <button data-tab="mach">Μηχανές</button>
+  </nav>
+</header>
+<main>
+  <section id="train"></section>
+  <section id="hist" class="hidden"></section>
+  <section id="mach" class="hidden"></section>
+  <div class="status" id="status">Φόρτωση…</div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const DEFAULT_MACHINES = [
+  {id:"A3", settings:"Lehne 2 · Beine 2 · Loch 7"},
+  {id:"A4", settings:"", isNew:true},
+  {id:"B6", settings:"Sitz 18 · Lehne 4 · Schultern 6"},
+  {id:"B7", settings:"", isNew:true},
+  {id:"F1", settings:"", isNew:true},
+  {id:"F3_1", name:"F3.1", settings:"Fuß 1 · Knie H-5 · Sitzp. – · Start 8 · Kurbel fest"},
+  {id:"F2", settings:"Sitzp. – · Loch 4"},
+  {id:"C5", settings:"Sitz 6 · Polster 16 · Arme horiz."},
+  {id:"C7", settings:"Polster 4 · Sitzp. nein · BEW 6–17"},
+  {id:"D6", settings:"Sitz 5 · Lehne 1 · Griffe horiz."},
+  {id:"E4", settings:"", isNew:true},
+  {id:"E5", settings:"Sitz 6 · Lehne 3 · Arme E · Start li/re 11 · Stopp li/re 14"},
+  {id:"G1", settings:"Sitz 4"},
+  {id:"G3", settings:"", isNew:true},
+  {id:"G5", settings:"Sitz 6 · Polster 8 · Kopf 4+"},
+].map(m=>({id:m.id,name:m.name||m.id,settings:m.settings,active:true,isNew:!!m.isNew}));
+
+// History from the paper card (lbs[/sec], default 120 s). est=1: date not written on the card, estimated.
+const SEED_COLS = ["A3","B6","F3_1","F2","C5","C7","D6","E5","G1","G5"];
+const SEED_ROWS = [
+ ["2026-06-30",0,"50 140 80 50 50 70 70 - - 32"],
+ ["2026-08-15",0,"54 150 84 54 54 76 76 50 80 32"],
+ ["2026-08-19",1,"58 150 88:max 58 58 80 80 54 80 34"],
+ ["2026-08-24",1,"62 154 92 62 62 84 84 58 84 38"],
+ ["2026-08-28",1,"66 160 96 66 66 88 88 62 88 42"],
+ ["2026-09-02",1,"70 164 100 70 70 92 92 66 92 46"],
+ ["2026-09-06",1,"74 168 104 74 74 96 96 70 96 50"],
+ ["2026-09-10",1,"78 172 104 78 78 100 100 74 100 54"],
+ ["2026-09-15",1,"82 176 108:M 78 82 104 104 74 104 58"],
+ ["2026-09-19",1,"96 180 - 84 86 108 108 74 108 -"],
+ ["2026-09-23",1,"100 184 112 86 90 112 112 74 112 62"],
+ ["2026-09-27",1,"104 188 116 90 94 116 116 70 116 66"],
+ ["2026-10-01",0,"108 192 120 94 98 120 120 70 120 70"],
+ ["2026-10-07",1,"108 200 - 98 106 128 128 70 124 74"],
+ ["2026-10-13",1,"108 204 120 90 110 132 132 66/105 124 74"],
+ ["2026-10-20",0,"100 208 124 90 114 136 136 60 124 74"],
+ ["2026-10-25",0,"100 212 120 90 118 140 140 60 124 74"],
+ ["2026-10-30",0,"100 216 120 90 114 136 144 60 120 74"],
+ ["2026-11-01",0,"100 220 120 90 114 136 144 60 120 80"],
+ ["2026-11-03",1,"100 220 120 90 114 136 144 60/90 120 80"],
+ ["2026-11-08",0,"100 220 120 - - - - - - -"],
+];
+function buildSeed(){
+  const out={};
+  for(const [date,est,line] of SEED_ROWS){
+    const entries={};
+    line.split(" ").forEach((tok,i)=>{
+      if(tok==="-") return;
+      let note=""; if(tok.includes(":")) [tok,note]=tok.split(":");
+      const [w,s]=tok.split("/");
+      entries[SEED_COLS[i]]={lb:+w,sec:s?+s:120,note:note?`κάρτα: ${note}`:""};
+    });
+    out[date]={date,entries,est:!!est,src:"card"};
+  }
+  return out;
+}
+
+const STD_SEC=120, STEP_LB=4, LB2KG=0.45359237, LS_KEY="kieser_log_v1";
+
+let config={machines:DEFAULT_MACHINES,seeded:false};
+let sessions={};
+let curDate=todayISO();
+let histMode="machine", histMachine=null;
+let store={mode:"local",col:null};
+const drafts={};
+
+function todayISO(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
+function fmtDate(iso){const [y,m,d]=iso.split("-");return `${d}.${m}.${y.slice(2)}`}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function kg(lb){const v=+lb*LB2KG;return lb!==""&&isFinite(v)?(Math.round(v*10)/10).toLocaleString("el-GR"):""}
+function r4(v){return Math.round(v/STEP_LB)*STEP_LB}
+const $=id=>document.getElementById(id);
+function toast(msg){const t=$("toast");t.textContent=msg;t.style.display="block";clearTimeout(toast._t);toast._t=setTimeout(()=>t.style.display="none",2400)}
+const SWATCHES=["#2a6fdb","#0ea5e9","#7b4fd6","#c8467f","#e11d48","#c23a2e","#d9701a","#eab308","#2f8f3e","#0e8f80","#6b7280","#1f2937"];
+function textOn(hex){const h=hex.replace("#","");if(h.length!==6)return "#fff";const [r,g,b]=[0,2,4].map(i=>parseInt(h.substr(i,2),16)/255).map(c=>c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4));return (0.2126*r+0.7152*g+0.0722*b)>0.4?"#141413":"#fff"}
+function mstyle(m){return m&&m.color?`--gc:${m.color};--gt:${textOn(m.color)}`:`--gc:${gcol(m)}`}
+function gcol(m){if(m&&m.color)return m.color;const n=(m&&m.name||"").trim().charAt(0).toUpperCase();return n&&"ABCDEFG".includes(n)?`var(--g${n})`:"var(--gX)"}
+function mById(id){return config.machines.find(m=>m.id===id)||{id,name:id.replace("_","."),settings:""}}
+
+function migrate(){
+  for(const m of config.machines) if(m.id==="F3.1"){m.id="F3_1";m.name=m.name||"F3.1";}
+  for(const d in sessions){
+    const e=sessions[d].entries||(sessions[d].entries={});
+    if(e["F3.1"]){e["F3_1"]=e["F3.1"];delete e["F3.1"];}
+    for(const k in e) if(e[k].lb==null&&e[k].kg!=null){e[k].lb=e[k].kg;delete e[k].kg;}
+  }
+}
+function seedIfNeeded(){
+  if(config.seeded) return [];
+  const seed=buildSeed(), changed=[];
+  for(const d in seed){
+    if(!sessions[d]){sessions[d]=seed[d];changed.push(d);continue;}
+    let ch=false;
+    for(const k in seed[d].entries) if(!sessions[d].entries[k]){sessions[d].entries[k]=seed[d].entries[k];ch=true;}
+    if(ch) changed.push(d);
+  }
+  config.seeded=true;
+  return changed;
+}
+
+function lsRead(){try{return JSON.parse(localStorage.getItem(LS_KEY)||"null")}catch(e){return null}}
+const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+const PREFS=NATIVE&&CAP.Plugins&&CAP.Plugins.Preferences;
+function lsWrite(){const txt=JSON.stringify({config,sessions});try{localStorage.setItem(LS_KEY,txt)}catch(e){} if(PREFS){try{PREFS.set({key:LS_KEY,value:txt}).catch(()=>{})}catch(e){}}}
+async function prefsRead(){if(!PREFS)return null;try{const r=await PREFS.get({key:LS_KEY});return r&&r.value?JSON.parse(r.value):null}catch(e){return null}}
+function sessDocId(d){return "d_"+d}
+async function readAllDb(){
+  const snap=await store.col.get();
+  const arr=snap&&(snap.docs||(Array.isArray(snap)?snap:[]))||[];
+  return arr.map(d=>({id:d.id??(d.ref&&d.ref.id),data:typeof d.data==="function"?d.data():(d.data??d)}));
+}
+async function saveDoc(id,data){
+  lsWrite();
+  if(store.mode!=="db") return;
+  try{await store.col.doc(id).set(data);}catch(e){console.error(e);toast("Δεν αποθηκεύτηκε στο cloud – κρατήθηκε τοπικά");}
+}
+async function delDoc(id){
+  lsWrite();
+  if(store.mode!=="db") return;
+  try{await store.col.doc(id).delete();}catch(e){console.error(e);toast("Σφάλμα διαγραφής");}
+}
+async function saveSession(d){if(sessions[d]) await saveDoc(sessDocId(d),sessions[d]); else await delDoc(sessDocId(d));}
+
+async function init(){
+  const local=(await prefsRead())||lsRead();
+  if(local){if(local.config&&local.config.machines) config=local.config; sessions=local.sessions||{};}
+  migrate();
+  let timer,col=null;
+  try{
+    const ready=(async()=>{
+      if(NATIVE||!window.claude||!window.claude.use) return null;
+      const [db,user]=await Promise.all([claude.use("db"),claude.use("user")]);
+      if(!db||!user) return null;
+      const uid=await user.id(); if(!uid) return null;
+      return db.collection("data/users/"+uid);
+    })();
+    col=await Promise.race([ready,new Promise(r=>{timer=setTimeout(()=>r(null),10000)})]);
+  }catch(e){console.error(e)}
+  clearTimeout(timer);
+  if(col){
+    try{
+      store={mode:"db",col};
+      const docs=await readAllDb();
+      let cfg=null;
+      for(const {id,data} of docs){
+        if(!data) continue;
+        if(id==="config") cfg=data;
+        else if(id&&id.startsWith("d_")&&data.date) sessions[data.date]={...data,entries:data.entries||{}};
+      }
+      if(cfg&&cfg.machines) config=cfg;
+      migrate();
+      const changed=seedIfNeeded();
+      lsWrite(); renderAll();
+      await saveDoc("config",config);
+      for(const d of (cfg?changed:Object.keys(sessions))) await saveSession(d);
+      setStatus("✓ Αποθηκεύεται στον λογαριασμό σου (όλες οι συσκευές)");
+      return;
+    }catch(e){console.error(e);store={mode:"local",col:null};}
+  }
+  seedIfNeeded(); lsWrite(); renderAll();
+  setStatus(NATIVE?"Αποθήκευση στο κινητό · κάνε πότε πότε «Αντιγραφή» (Μηχανές) για backup":"Αποθήκευση μόνο σε αυτή τη συσκευή");
+}
+function setStatus(s){$("status").textContent=s}
+
+function machines(activeOnly){return config.machines.filter(m=>!activeOnly||m.active)}
+function sortedDates(){return Object.keys(sessions).filter(d=>Object.keys(sessions[d].entries||{}).length).sort()}
+function lastBefore(mid,date){
+  for(const d of sortedDates().filter(d=>d<date).reverse()){const e=sessions[d].entries[mid]; if(e&&e.lb!=null&&e.lb!=="") return {...e,date:d};}
+  return null;
+}
+function suggestion(last){
+  if(!last) return null;
+  const lb=+last.lb, sec=+last.sec;
+  if(sec>=120) return {kind:"up",lb:Math.max(lb+STEP_LB,r4(lb*1.05)),label:"↑ +5%"};
+  if(sec<90) return {kind:"down",lb:Math.max(0,Math.min(lb-STEP_LB,r4(lb*0.95))),label:"↓ −5%"};
+  return {kind:"same",lb,label:"= ίδιο"};
+}
+function history(mid){
+  return sortedDates().map(d=>{const e=sessions[d].entries[mid];return e?{date:d,est:sessions[d].est,...e}:null}).filter(e=>e&&e.lb!==""&&e.lb!=null);
+}
+
+// ---------- training ----------
+function renderTrain(){
+  const sess=sessions[curDate]||{entries:{}};
+  const list=machines(true);
+  const done=list.filter(m=>sess.entries[m.id]).length;
+  let h=`<div class="datebar"><input type="date" id="dateIn" value="${curDate}"><button class="btn small" id="todayBtn">Σήμερα</button></div>
+  <div class="progress"><div class="t"><span>${fmtDate(curDate)}${sess.est?'<span class="est">≈ ημ/νία</span>':""}</span><span><b>${done}</b> / ${list.length} μηχανές</span></div><div class="bar"><i style="width:${list.length?done/list.length*100:0}%"></i></div></div>
+  <div class="tempo">Tempo 4-2-4-2 s · Στόχος 90–120 s · ≥120 s → +5% · &lt;90 s → −5%</div>`;
+  for(const m of list){
+    const saved=sess.entries[m.id], last=lastBefore(m.id,curDate), sug=suggestion(last);
+    const key=curDate+"|"+m.id;
+    const dr=drafts[key]||(saved?{...saved}:{lb:sug?sug.lb:"",sec:STD_SEC,note:""});
+    drafts[key]=dr;
+    h+=`<div class="card m ${saved?"done":""}" data-mid="${esc(m.id)}" style="${mstyle(m)}">
+      <div class="row"><span class="badge">${esc(m.name)}</span>${m.isNew&&!last&&!saved?'<span class="new">ΝΕΑ</span>':""}
+        ${saved?'<span class="sug up" style="margin-left:auto">✓ καταχωρήθηκε</span>':""}</div>
+      ${m.settings?`<div class="settings">${esc(m.settings)}</div>`:""}
+      <div class="last">${last?`Τελευταία: <b>${last.lb} lbs</b> <small>(${kg(last.lb)} kg)</small> · ${last.sec} s · ${fmtDate(last.date)}${sug?`<span class="sug ${sug.kind}">${sug.label} → ${sug.lb}</span>`:""}`:"Χωρίς ιστορικό ακόμα"}</div>
+      <div class="inputs">
+        <div class="field"><label>lbs</label><div class="stepper"><button data-act="lb-" aria-label="μείον 4">−</button><input inputmode="decimal" data-f="lb" value="${esc(dr.lb)}" placeholder="lbs"><button data-act="lb+" aria-label="συν 4">+</button></div><div class="kgsub" data-kg>${dr.lb!==""?kg(dr.lb)+" kg":""}</div></div>
+        <div class="field"><label>Δευτερόλεπτα</label><div class="stepper"><button data-act="sec-" aria-label="μείον">−</button><input inputmode="numeric" data-f="sec" value="${esc(dr.sec)}"><button data-act="sec+" aria-label="συν">+</button></div></div>
+      </div>
+      <input class="note" data-f="note" placeholder="Σημείωση (προαιρετικό)" value="${esc(dr.note||"")}">
+      <div class="actions">
+        <button class="btn ${saved?"ok":"primary"}" data-act="save">${saved?"✓ Ενημέρωση":"Αποθήκευση"}</button>
+        ${saved?'<button class="btn danger" data-act="unsave">Αφαίρεση</button>':""}
+      </div>
+    </div>`;
+  }
+  $("train").innerHTML=h;
+  $("dateIn").onchange=e=>{if(e.target.value){curDate=e.target.value;renderTrain();}};
+  $("todayBtn").onclick=()=>{curDate=todayISO();renderTrain();};
+}
+function updKg(card,v){const el=card.querySelector("[data-kg]");const n=parseFloat(String(v).replace(",","."));if(el)el.textContent=isNaN(n)?"":kg(n)+" kg";}
+$("train").addEventListener("input",e=>{
+  const card=e.target.closest(".card"),f=e.target.dataset.f; if(!card||!f) return;
+  drafts[curDate+"|"+card.dataset.mid][f]=e.target.value;
+  if(f==="lb") updKg(card,e.target.value);
+});
+$("train").addEventListener("click",async e=>{
+  const b=e.target.closest("button[data-act]"); if(!b) return;
+  const card=b.closest(".card"); if(!card) return;
+  const mid=card.dataset.mid,key=curDate+"|"+mid,dr=drafts[key],act=b.dataset.act;
+  const step={"lb-":["lb",-STEP_LB],"lb+":["lb",STEP_LB],"sec-":["sec",-5],"sec+":["sec",5]}[act];
+  if(step){
+    const [f,d]=step, v=parseFloat(String(dr[f]).replace(",","."))||0;
+    dr[f]=Math.max(0,+(v+d).toFixed(1));
+    card.querySelector(`input[data-f="${f}"]`).value=dr[f];
+    if(f==="lb") updKg(card,dr[f]);
+    return;
+  }
+  if(act==="save"){
+    const lb=parseFloat(String(dr.lb).replace(",",".")), sec=parseInt(dr.sec,10);
+    if(isNaN(lb)||lb<0){toast("Βάλε lbs");return;}
+    if(!(sec>0)){toast("Βάλε δευτερόλεπτα");return;}
+    if(!sessions[curDate]) sessions[curDate]={date:curDate,entries:{}};
+    sessions[curDate].entries[mid]={lb,sec,note:(dr.note||"").trim()};
+    drafts[key]={...sessions[curDate].entries[mid]};
+    renderTrain(); toast(`${mById(mid).name}: ${lb} lbs (${kg(lb)} kg) · ${sec} s ✓`);
+    await saveSession(curDate);
+  }
+  if(act==="unsave"){
+    const s=sessions[curDate]; if(!s) return;
+    delete s.entries[mid]; delete drafts[key];
+    if(!Object.keys(s.entries).length) delete sessions[curDate];
+    renderTrain(); await saveSession(curDate);
+  }
+});
+
+// ---------- history ----------
+function renderHist(){
+  const dates=sortedDates();
+  let h=`<div class="seg"><button data-hm="machine" class="${histMode==="machine"?"on":""}">Ανά μηχανή</button><button data-hm="date" class="${histMode==="date"?"on":""}">Ανά μέρα</button><button data-hm="overview" class="${histMode==="overview"?"on":""}">Σύνοψη</button></div>`;
+  if(!dates.length){$("hist").innerHTML=h+`<div class="empty">Δεν υπάρχουν καταχωρήσεις ακόμα.</div>`;return;}
+  if(histMode==="machine"){
+    const ms=machines(false);
+    if(!histMachine||!ms.find(m=>m.id===histMachine)) histMachine=(ms.find(m=>history(m.id).length)||ms[0]).id;
+    h+=`<div class="chips">${ms.map(m=>`<button class="chip ${m.id===histMachine?"on":""}" style="${mstyle(m)}" data-hmach="${esc(m.id)}">${esc(m.name)}</button>`).join("")}</div>`;
+    const m=mById(histMachine), hs=history(histMachine);
+    h+=`<div class="card m" style="${mstyle(m)}"><div class="row"><span class="badge">${esc(m.name)}</span></div>${m.settings?`<div class="settings">${esc(m.settings)}</div>`:""}`;
+    if(!hs.length) h+=`<div class="empty">Καμία καταχώρηση για ${esc(m.name)}</div></div>`;
+    else{
+      const f=hs[0],l=hs[hs.length-1],pct=f.lb?Math.round((l.lb-f.lb)/f.lb*100):0;
+      h+=`<div class="stats"><div class="stat"><div class="k">Τελευταίο</div><div class="v">${l.lb}<small> lbs</small></div><div class="s">${kg(l.lb)} kg</div></div>
+        <div class="stat"><div class="k">Από ${fmtDate(f.date)}</div><div class="v ${pct>=0?"pos":"negv"}">${pct>=0?"+":""}${pct}%</div><div class="s">${f.lb} → ${l.lb} lbs</div></div>
+        <div class="stat"><div class="k">Προπονήσεις</div><div class="v">${hs.length}</div></div></div>
+        <div class="chartwrap" id="cw">${chartSVG(hs,gcol(m))}<div class="tip" id="tip"></div></div>
+        <table style="margin-top:8px"><thead><tr><th>Ημ/νία</th><th class="num">lbs</th><th class="num">sec</th><th>Σημ.</th></tr></thead><tbody>
+        ${hs.slice().reverse().map(e=>`<tr><td>${fmtDate(e.date)}${e.est?'<span class="est">≈</span>':""}</td><td class="num"><b>${e.lb}</b><small>${kg(e.lb)} kg</small></td><td class="num">${e.sec}</td><td style="font-size:12px;color:var(--muted)">${esc(e.note||"")}</td></tr>`).join("")}
+        </tbody></table></div>`;
+    }
+  } else if(histMode==="date"){
+    const order=config.machines.map(m=>m.id);
+    for(const d of dates.slice().reverse()){
+      const s=sessions[d], ids=Object.keys(s.entries).sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+      h+=`<div class="card" data-date="${d}"><div class="sess-h"><b>${fmtDate(d)}${s.est?'<span class="est">≈ εκτίμηση ημ/νίας</span>':""}</b><span class="sub">${ids.length} μηχανές</span></div>
+        <div class="grid2">${ids.map(id=>{const m=mById(id),e=s.entries[id];return `<span><span class="pill" style="${mstyle(m)}">${esc(m.name)}</span>${e.lb}<span class="sub">/${e.sec}</span></span>`}).join("")}</div>
+        <div class="actions slot"><button class="btn small" data-sact="edit">Επεξεργασία</button><button class="btn small" data-sact="move">Αλλαγή ημ/νίας</button><button class="btn small danger" data-sact="del">Διαγραφή</button></div></div>`;
+    }
+  } else {
+    h+=`<div class="card"><table><thead><tr><th>Μηχανή</th><th class="num">Πρώτο</th><th class="num">Τελευταίο</th><th class="num">Δ</th><th class="num">#</th></tr></thead><tbody>`;
+    for(const m of machines(false)){
+      const hs=history(m.id);
+      if(!hs.length){h+=`<tr><td><span class="pill" style="${mstyle(m)}">${esc(m.name)}</span></td><td class="num" colspan="4" style="color:var(--muted)">—</td></tr>`;continue;}
+      const f=hs[0],l=hs[hs.length-1],p=f.lb?Math.round((l.lb-f.lb)/f.lb*100):0;
+      h+=`<tr><td><span class="pill" style="${mstyle(m)}">${esc(m.name)}</span></td><td class="num">${f.lb}<small>${kg(f.lb)} kg</small></td><td class="num"><b>${l.lb}</b><small>${kg(l.lb)} kg</small></td><td class="num ${p>=0?"pos":"negv"}">${p>=0?"+":""}${p}%</td><td class="num">${hs.length}</td></tr>`;
+    }
+    h+=`</tbody></table></div>`;
+  }
+  $("hist").innerHTML=h; wireChart();
+}
+function chartSVG(hs,color){
+  const W=340,H=170,pl=34,pr=12,pt=12,pb=24;
+  const ks=hs.map(e=>+e.lb); let lo=Math.min(...ks),hi=Math.max(...ks);
+  if(lo===hi){lo-=8;hi+=8}
+  const pad=(hi-lo)*0.1; lo=Math.max(0,Math.floor(lo-pad)); hi=Math.ceil(hi+pad);
+  const x=i=>hs.length===1?(pl+W-pr)/2:pl+i*(W-pl-pr)/(hs.length-1);
+  const y=v=>pt+(hi-v)*(H-pt-pb)/(hi-lo);
+  let s=`<svg viewBox="0 0 ${W} ${H}" id="chart" role="img" aria-label="lbs ανά προπόνηση"><defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>`;
+  for(const t of [lo,Math.round((lo+hi)/2),hi]) s+=`<line x1="${pl}" x2="${W-pr}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${pl-6}" y="${y(t)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${t}</text>`;
+  const idx=hs.length<=4?hs.map((_,i)=>i):[0,Math.floor((hs.length-1)/2),hs.length-1];
+  for(const i of idx) s+=`<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${fmtDate(hs[i].date).slice(0,5)}</text>`;
+  if(hs.length>1){
+    const pts=hs.map((e,i)=>x(i)+","+y(e.lb)).join(" ");
+    s+=`<polygon fill="url(#ga)" points="${x(0)},${H-pb} ${pts} ${x(hs.length-1)},${H-pb}"/>`;
+    s+=`<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>`;
+  }
+  hs.forEach((e,i)=>{s+=`<circle cx="${x(i)}" cy="${y(e.lb)}" r="4" fill="${color}" stroke="var(--card)" stroke-width="2"/>`;});
+  s+=`<rect x="0" y="0" width="${W}" height="${H}" fill="transparent"/></svg>`;
+  chartSVG._pts=hs.map((e,i)=>({x:x(i),y:y(e.lb),e}));
+  return s;
+}
+function wireChart(){
+  const svg=$("chart"); if(!svg) return; const tip=$("tip");
+  const move=ev=>{
+    const r=svg.getBoundingClientRect(), sx=(ev.clientX-r.left)*340/r.width;
+    let best=null; for(const p of chartSVG._pts) if(!best||Math.abs(p.x-sx)<Math.abs(best.x-sx)) best=p;
+    if(!best) return;
+    tip.style.display="block"; tip.style.left=(best.x*r.width/340)+"px"; tip.style.top=(best.y*r.height/170)+"px";
+    tip.textContent=`${fmtDate(best.e.date)} · ${best.e.lb} lbs (${kg(best.e.lb)} kg) · ${best.e.sec} s`;
+  };
+  svg.addEventListener("pointermove",move); svg.addEventListener("pointerdown",move);
+  svg.addEventListener("pointerleave",()=>tip.style.display="none");
+}
+$("hist").addEventListener("click",async e=>{
+  const hm=e.target.closest("[data-hm]"); if(hm){histMode=hm.dataset.hm;renderHist();return;}
+  const hc=e.target.closest("[data-hmach]"); if(hc){histMachine=hc.dataset.hmach;renderHist();return;}
+  const sa=e.target.closest("[data-sact]"); if(!sa) return;
+  const card=sa.closest("[data-date]"), d=card.dataset.date, slot=card.querySelector(".slot"), a=sa.dataset.sact;
+  if(a==="edit"){curDate=d;showTab("train");window.scrollTo(0,0);}
+  if(a==="del") slot.innerHTML=`<span class="confirm">Διαγραφή όλης της προπόνησης; <button class="btn small danger" data-sact="del2">Ναι</button><button class="btn small" data-sact="cancel">Όχι</button></span>`;
+  if(a==="move") slot.innerHTML=`<span class="confirm">Νέα ημ/νία: <input type="date" value="${d}" id="mv_${d}"> <button class="btn small" data-sact="move2">OK</button><button class="btn small" data-sact="cancel">Άκυρο</button></span>`;
+  if(a==="cancel") renderHist();
+  if(a==="del2"){delete sessions[d];for(const k in drafts) if(k.startsWith(d+"|")) delete drafts[k];renderHist();toast("Διαγράφηκε");await saveSession(d);}
+  if(a==="move2"){
+    const nd=$("mv_"+d).value; if(!nd||nd===d){renderHist();return;}
+    const src=sessions[d];
+    if(sessions[nd]) Object.assign(sessions[nd].entries,src.entries); else sessions[nd]={date:nd,entries:src.entries};
+    sessions[nd].est=false; if(src.src) sessions[nd].src=src.src;
+    delete sessions[d]; for(const k in drafts) if(k.startsWith(d+"|")||k.startsWith(nd+"|")) delete drafts[k];
+    renderHist(); toast(`Μεταφέρθηκε στις ${fmtDate(nd)}`);
+    await saveSession(nd); await saveSession(d);
+  }
+});
+
+// ---------- machines ----------
+function renderMach(){
+  let h=`<div class="tempo">Οι ενεργές μηχανές εμφανίζονται στην προπόνηση. Οι ρυθμίσεις είναι από την κάρτα — έλεγξέ τες.</div>`;
+  config.machines.forEach((m,i)=>{
+    h+=`<div class="card m" data-i="${i}" style="${mstyle(m)}"><div class="mrow">
+      <input type="text" data-mf="name" value="${esc(m.name)}" aria-label="Όνομα">
+      <button class="btn small" data-ma="up" ${i===0?"disabled":""}>↑</button>
+      <button class="btn small" data-ma="down" ${i===config.machines.length-1?"disabled":""}>↓</button>
+      <label class="switch"><input type="checkbox" data-mf="active" ${m.active?"checked":""}> Ενεργή</label></div>
+      <textarea rows="2" data-mf="settings" placeholder="Ρυθμίσεις (Sitz, Lehne…)">${esc(m.settings)}</textarea>
+      <div class="swatches"><span class="swl">Χρώμα</span><button class="sw auto ${!m.color?"on":""}" data-col="" title="Αυτόματο (ανά γράμμα)" aria-label="Αυτόματο"></button>${SWATCHES.map(c=>`<button class="sw ${m.color===c?"on":""}" style="background:${c}" data-col="${c}" aria-label="${c}"></button>`).join("")}<input type="color" class="swc" data-mf="color" value="${m.color||"#2a6fdb"}" title="Δικό σου χρώμα"></div>
+      <div class="actions slot"><button class="btn small danger" data-ma="del">Διαγραφή μηχανής</button></div></div>`;
+  });
+  h+=`<button class="btn primary" style="width:100%" id="addM">+ Προσθήκη μηχανής</button>
+  <div class="card" style="margin-top:16px"><b>Αντίγραφο ασφαλείας</b>
+    <div class="settings">Αντιγραφή όλων των δεδομένων ως κείμενο, ή επικόλληση για επαναφορά.</div>
+    <div class="actions"><button class="btn" id="copyB">Αντιγραφή</button><button class="btn" id="impB">Επαναφορά…</button></div>
+    <div id="impBox" class="hidden"><textarea id="impT" rows="4" placeholder="Επικόλλησε εδώ το αντίγραφο"></textarea>
+    <div class="actions"><button class="btn primary" id="impGo">Επαναφορά (αντικαθιστά τα τρέχοντα)</button></div></div>
+    <textarea id="expT" rows="3" class="hidden" readonly></textarea>
+  </div>`;
+  $("mach").innerHTML=h;
+}
+let cfgTimer;
+function saveConfigSoon(){clearTimeout(cfgTimer);lsWrite();cfgTimer=setTimeout(()=>saveDoc("config",config),600)}
+$("mach").addEventListener("input",e=>{
+  const card=e.target.closest("[data-i]"),f=e.target.dataset.mf; if(!card||!f) return;
+  const m=config.machines[+card.dataset.i];
+  if(f==="active") m.active=e.target.checked;
+  else if(f==="name"){m.name=e.target.value.trim()||m.id;card.setAttribute("style",mstyle(m));}
+  else if(f==="color"){m.color=e.target.value;card.setAttribute("style",mstyle(m));card.querySelectorAll(".sw").forEach(x=>x.classList.remove("on"));}
+  else m[f]=e.target.value;
+  saveConfigSoon();
+});
+$("mach").addEventListener("click",async e=>{
+  if(e.target.id==="addM"){config.machines.push({id:"M"+Date.now().toString(36),name:"Νέα",settings:"",active:true,isNew:true});renderMach();saveConfigSoon();return;}
+  if(e.target.id==="copyB"){
+    const txt=JSON.stringify({config,sessions});
+    try{await navigator.clipboard.writeText(txt);toast("Αντιγράφηκε");}
+    catch(err){const t=$("expT");t.value=txt;t.classList.remove("hidden");t.select();toast("Αντέγραψε το κείμενο από το πλαίσιο");}
+    return;
+  }
+  if(e.target.id==="impB"){$("impBox").classList.toggle("hidden");return;}
+  if(e.target.id==="impGo"){
+    try{
+      const d=JSON.parse($("impT").value); if(!d.config||!d.config.machines||!d.sessions) throw 0;
+      const old=Object.keys(sessions);
+      config=d.config; sessions=d.sessions; config.seeded=true; migrate();
+      lsWrite(); renderAll(); toast("Έγινε επαναφορά");
+      if(store.mode==="db"){for(const k of old) if(!sessions[k]) await delDoc(sessDocId(k)); await saveDoc("config",config); for(const k in sessions) await saveSession(k);}
+    }catch(err){toast("Μη έγκυρο αντίγραφο");}
+    return;
+  }
+  const sw=e.target.closest("[data-col]");
+  if(sw){const m=config.machines[+sw.closest("[data-i]").dataset.i]; if(sw.dataset.col) m.color=sw.dataset.col; else delete m.color; renderMach(); saveConfigSoon(); return;}
+  const b=e.target.closest("[data-ma]"); if(!b) return;
+  const i=+b.closest("[data-i]").dataset.i, ms=config.machines, a=b.dataset.ma;
+  if(a==="up"&&i>0)[ms[i-1],ms[i]]=[ms[i],ms[i-1]];
+  else if(a==="down"&&i<ms.length-1)[ms[i+1],ms[i]]=[ms[i],ms[i+1]];
+  else if(a==="del"){b.closest(".slot").innerHTML=`<span class="confirm">Το ιστορικό της μένει. Σίγουρα; <button class="btn small danger" data-ma="del2">Ναι</button><button class="btn small" data-ma="cancel">Όχι</button></span>`;return;}
+  else if(a==="del2") ms.splice(i,1);
+  else if(a!=="cancel") return;
+  renderMach(); saveConfigSoon();
+});
+
+function showTab(t){
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  ["train","hist","mach"].forEach(id=>$(id).classList.toggle("hidden",id!==t));
+  if(t==="train")renderTrain(); if(t==="hist")renderHist(); if(t==="mach")renderMach();
+}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+function renderAll(){const t=document.querySelector("nav button.on").dataset.tab; if(t==="mach")renderMach(); else if(t==="hist")renderHist(); else renderTrain();}
+init();
+</script>
+</body>
+</html>

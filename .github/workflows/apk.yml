@@ -1,0 +1,34 @@
+name: Build APK
+on:
+  push: { branches: [main] }
+  workflow_dispatch: {}
+permissions: { contents: write }
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add android
+      - run: bash scripts/android-setup.sh
+      - run: npx cap sync android
+      - name: Gradle
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk kieser-log.apk
+      - name: Check the signing key (must never change, or the phone refuses the update)
+        run: |
+          keytool -printcert -jarfile kieser-log.apk | grep -q "9B:B5:CB:11:45:F6:E4:19:7A:A9:13:30:AA:2D:8C:C6:E1:D6:42:DE:D1:58:DC:5E:C5:E6:D0:1D:16:CF:C0:41" \
+            || { echo "APK not signed with ci/debug.keystore"; keytool -printcert -jarfile kieser-log.apk; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with: { name: kieser-log-apk, path: kieser-log.apk }
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: Kieser Log 1.${{ github.run_number }}
+          files: kieser-log.apk
+          make_latest: true

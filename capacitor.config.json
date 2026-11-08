@@ -1,0 +1,7 @@
+{
+  "appId": "com.chris.kieserlog",
+  "appName": "Kieser Log",
+  "webDir": "www",
+  "backgroundColor": "#1a3d6e",
+  "android": { "allowMixedContent": false }
+}
