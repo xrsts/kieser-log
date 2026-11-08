@@ -32,3 +32,9 @@ jobs:
           name: Kieser Log 1.${{ github.run_number }}
           files: kieser-log.apk
           make_latest: true
+      - name: Also put the APK on the "apk" branch (so it can be fetched with git)
+        run: |
+          mkdir /tmp/out && cp kieser-log.apk /tmp/out/ && cd /tmp/out
+          git init -q -b apk && git -c user.name=github-actions -c user.email=actions@github.com commit -q --allow-empty -m "x" && git add kieser-log.apk
+          git -c user.name=github-actions -c user.email=actions@github.com commit -q -m "Kieser Log 1.${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" apk
