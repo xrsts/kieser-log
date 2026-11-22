@@ -153,6 +153,23 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
 #sov .quick button{border:1.5px solid color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 14%,transparent);color:var(--sc);border-radius:999px;padding:6px 12px;font-weight:700;cursor:pointer}
 @media (prefers-color-scheme:dark){#sov .quick button,#sov input.k{color:color-mix(in srgb,var(--sc) 60%,#fff)}}
 .sugbtn{border:1.5px solid currentColor;cursor:pointer;font-size:13px;padding:4px 10px}
+.allhead{display:flex;justify-content:space-between;font-size:14px;color:var(--ink2);margin:0 2px 8px}
+.allgrid{display:grid;gap:8px;min-height:300px}
+.tile{position:relative;border:2px solid var(--gc);border-radius:14px;background:color-mix(in srgb,var(--gc) 14%,var(--card));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:4px;min-height:0;overflow:hidden}
+.tile .tn{font-size:clamp(20px,7vw,30px);font-weight:900;color:var(--gc)}
+.tile .tl{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tile.done{background:var(--gc)}
+.tile.done .tn{color:var(--gt,#fff)}
+.tile.done .tl{color:var(--gt,#fff);opacity:.9}
+@media (prefers-color-scheme:dark){.tile.done .tn,.tile.done .tl{color:var(--gt,#141413)}}
+.tile .tck,.tile .tup{position:absolute;top:4px;right:7px;font-size:14px;font-weight:900}
+.tile .tck{color:var(--gt,#fff)}
+@media (prefers-color-scheme:dark){.tile .tck{color:var(--gt,#141413)}}
+.tile .tup{color:var(--good)}
+@keyframes flash{0%{box-shadow:0 0 0 4px var(--gc)}100%{box-shadow:0 0 0 0 transparent}}
+.card.flash{animation:flash 1.6s ease-out}
+nav button{font-size:15px}
+main.fit{padding-bottom:8px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -163,12 +180,14 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
     <span class="sub">Χρήστος · lbs</span>
   </div>
   <nav>
+    <button data-tab="all">Όλες</button>
     <button data-tab="train" class="on">Προπόνηση</button>
     <button data-tab="hist">Ιστορικό</button>
     <button data-tab="mach">Μηχανές</button>
   </nav>
 </header>
 <main>
+  <section id="all" class="hidden"></section>
   <section id="train"></section>
   <section id="hist" class="hidden"></section>
   <section id="mach" class="hidden"></section>
@@ -761,11 +780,42 @@ $("tov").addEventListener("click",e=>{
 
 function showTab(t){
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
-  ["train","hist","mach"].forEach(id=>$(id).classList.toggle("hidden",id!==t));
-  if(t==="train")renderTrain(); if(t==="hist")renderHist(); if(t==="mach")renderMach();
+  ["all","train","hist","mach"].forEach(id=>$(id).classList.toggle("hidden",id!==t));
+  $("status").classList.toggle("hidden",t==="all");
+  document.querySelector("main").classList.toggle("fit",t==="all");
+  if(t==="all")renderAllGrid(); if(t==="train")renderTrain(); if(t==="hist")renderHist(); if(t==="mach")renderMach();
 }
+// ---------- all machines on one screen ----------
+function renderAllGrid(){
+  const list=machines(true), sess=sessions[curDate]||{entries:{}};
+  const cols=list.length>15?4:3, rows=Math.max(1,Math.ceil(list.length/cols));
+  const hh=document.querySelector("header").offsetHeight;
+  const done=list.filter(m=>sess.entries[m.id]).length;
+  let h=`<div class="allhead"><span>${fmtDate(curDate)}</span><span><b>${done}</b> / ${list.length} ✓</span></div>
+    <div class="allgrid" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr);height:calc(100dvh - ${hh}px - 58px)">`;
+  for(const m of list){
+    const e=sess.entries[m.id], last=lastBefore(m.id,curDate), sug=suggestion(last), show=e||last;
+    h+=`<button class="tile ${e?"done":""}" style="${mstyle(m)}" data-goto="${esc(m.id)}">
+      <span class="tn">${esc(m.name)}</span>
+      <span class="tl">${show?`${show.lb} lbs · ${show.sec} s`:"—"}</span>
+      ${e?'<span class="tck">✓</span>':sug&&sug.kind==="up"?'<span class="tup">↑</span>':""}
+    </button>`;
+  }
+  $("all").innerHTML=h+`</div>`;
+}
+$("all").addEventListener("click",e=>{
+  const t=e.target.closest("[data-goto]"); if(!t) return;
+  const mid=t.dataset.goto;
+  showTab("train");
+  const card=document.querySelector(`#train .card[data-mid="${CSS.escape(mid)}"]`);
+  if(card){
+    const y=card.getBoundingClientRect().top+window.scrollY-document.querySelector("header").offsetHeight-8;
+    window.scrollTo({top:y,behavior:"instant"});
+    card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
+  }
+});
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-function renderAll(){const t=document.querySelector("nav button.on").dataset.tab; if(t==="mach")renderMach(); else if(t==="hist")renderHist(); else renderTrain();}
+function renderAll(){const t=document.querySelector("nav button.on").dataset.tab; if(t==="all")renderAllGrid(); else if(t==="mach")renderMach(); else if(t==="hist")renderHist(); else renderTrain();}
 init();
 </script>
 </body>
