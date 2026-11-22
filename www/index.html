@@ -135,6 +135,18 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
 .set .k{font-size:14px;font-weight:700;color:var(--sc)}
 .set .v{font-size:20px;font-weight:900;color:var(--ink)}
 @media (prefers-color-scheme:dark){.set .k{color:color-mix(in srgb,var(--sc) 60%,#fff)}}
+.setrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.setrow .sets{display:contents}
+.setedit{color:var(--gc,var(--accent));font-weight:800;padding:7px 12px}
+#sov{position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sov .sheet{background:var(--card);width:100%;max-width:640px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px 24px}
+#sov .srow{display:grid;grid-template-columns:1fr 90px 40px;gap:8px;margin-top:8px;align-items:center}
+#sov input{border:1.5px solid var(--line);border-radius:10px;background:var(--bg);padding:10px;font-size:17px;min-width:0;width:100%}
+#sov input.k{font-weight:700;color:var(--sc);border-color:color-mix(in srgb,var(--sc) 55%,transparent)}
+#sov input.v{font-weight:900;text-align:center;font-size:19px}
+#sov .quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+#sov .quick button{border:1.5px solid color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 14%,transparent);color:var(--sc);border-radius:999px;padding:6px 12px;font-weight:700;cursor:pointer}
+@media (prefers-color-scheme:dark){#sov .quick button,#sov input.k{color:color-mix(in srgb,var(--sc) 60%,#fff)}}
 .hidden{display:none!important}
 </style>
 </head>
@@ -157,6 +169,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
   <div class="status" id="status">Φόρτωση…</div>
 </main>
 <div id="tov" class="hidden"></div>
+<div id="sov" class="hidden"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -353,14 +366,16 @@ function setColor(label){
   let h=0; for(const c of key.toLowerCase()) h=(h*31+c.charCodeAt(0))>>>0;
   return SET_FALLBACK[h%SET_FALLBACK.length];
 }
-function settingsHTML(str){
-  if(!str||!str.trim()) return "";
-  const parts=str.split(/\s*[·;,\n]\s*/).map(x=>x.trim()).filter(Boolean);
-  return `<div class="sets">${parts.map(p=>{
-    const i=p.lastIndexOf(" ");
-    const k=i>0?p.slice(0,i):p, v=i>0?p.slice(i+1):"";
-    return `<span class="set" style="--sc:${setColor(k)}"><span class="k">${esc(k)}</span>${v?`<span class="v">${esc(v)}</span>`:""}</span>`;
-  }).join("")}</div>`;
+function parseSettings(str){
+  if(!str||!str.trim()) return [];
+  return str.split(/\s*[·;,\n]\s*/).map(x=>x.trim()).filter(Boolean).map(p=>{
+    const i=p.lastIndexOf(" "); return i>0?{k:p.slice(0,i),v:p.slice(i+1)}:{k:p,v:""};
+  });
+}
+function getSets(m){return Array.isArray(m.sets)?m.sets:parseSettings(m.settings)}
+function settingsHTML(m){
+  const sets=getSets(m); if(!sets.length) return "";
+  return `<div class="sets">${sets.map(({k,v})=>`<span class="set" style="--sc:${setColor(k)}"><span class="k">${esc(k)}</span>${v?`<span class="v">${esc(v)}</span>`:""}</span>`).join("")}</div>`;
 }
 
 // ---------- training ----------
@@ -379,7 +394,7 @@ function renderTrain(){
     h+=`<div class="card m ${saved?"done":""}" data-mid="${esc(m.id)}" style="${mstyle(m)}">
       <div class="row"><span class="badge">${esc(m.name)}</span>${m.isNew&&!last&&!saved?'<span class="new">ΝΕΑ</span>':""}
         ${saved?'<span class="sug up" style="margin-left:auto">✓ καταχωρήθηκε</span>':""}</div>
-      ${settingsHTML(m.settings)}
+      <div class="setrow">${settingsHTML(m)}<button class="btn small setedit" data-act="sets">${getSets(m).length?"✎":"+ Ρυθμίσεις"}</button></div>
       <div class="last">${last?`Τελευταία: <b>${last.lb} lbs</b> <small>(${kg(last.lb)} kg)</small> · ${last.sec} s · ${fmtDate(last.date)}${sug?`<span class="sug ${sug.kind}">${sug.label} → ${sug.lb}</span>`:""}`:"Χωρίς ιστορικό ακόμα"}</div>
       <div class="inputs">
         <div class="field"><label>lbs</label><div class="stepper"><button data-act="lb-" aria-label="μείον 4">−</button><input inputmode="decimal" data-f="lb" value="${esc(dr.lb)}" placeholder="lbs"><button data-act="lb+" aria-label="συν 4">+</button></div><div class="kgsub" data-kg>${dr.lb!==""?kg(dr.lb)+" kg":""}</div></div>
@@ -408,6 +423,7 @@ $("train").addEventListener("click",async e=>{
   const card=b.closest(".card"); if(!card) return;
   const mid=card.dataset.mid,key=curDate+"|"+mid,dr=drafts[key],act=b.dataset.act;
   if(act==="timer"){openTimer(mid);return;}
+  if(act==="sets"){openSets(mid);return;}
   const step={"lb-":["lb",-STEP_LB],"lb+":["lb",STEP_LB],"sec-":["sec",-5],"sec+":["sec",5]}[act];
   if(step){
     const [f,d]=step, v=parseFloat(String(dr[f]).replace(",","."))||0;
@@ -444,7 +460,7 @@ function renderHist(){
     if(!histMachine||!ms.find(m=>m.id===histMachine)) histMachine=(ms.find(m=>history(m.id).length)||ms[0]).id;
     h+=`<div class="chips">${ms.map(m=>`<button class="chip ${m.id===histMachine?"on":""}" style="${mstyle(m)}" data-hmach="${esc(m.id)}">${esc(m.name)}</button>`).join("")}</div>`;
     const m=mById(histMachine), hs=history(histMachine);
-    h+=`<div class="card m" style="${mstyle(m)}"><div class="row"><span class="badge">${esc(m.name)}</span></div>${settingsHTML(m.settings)}`;
+    h+=`<div class="card m" style="${mstyle(m)}"><div class="row"><span class="badge">${esc(m.name)}</span></div>${settingsHTML(m)}`;
     if(!hs.length) h+=`<div class="empty">Καμία καταχώρηση για ${esc(m.name)}</div></div>`;
     else{
       const f=hs[0],l=hs[hs.length-1],pct=f.lb?Math.round((l.lb-f.lb)/f.lb*100):0;
@@ -539,7 +555,7 @@ function renderMach(){
       <button class="btn small" data-ma="up" ${i===0?"disabled":""}>↑</button>
       <button class="btn small" data-ma="down" ${i===config.machines.length-1?"disabled":""}>↓</button>
       <label class="switch"><input type="checkbox" data-mf="active" ${m.active?"checked":""}> Ενεργή</label></div>
-      <textarea rows="2" data-mf="settings" placeholder="Ρυθμίσεις (Sitz, Lehne…)">${esc(m.settings)}</textarea>
+      <div class="setrow">${settingsHTML(m)}<button class="btn small setedit" data-ma="sets">${getSets(m).length?"✎ Ρυθμίσεις":"+ Ρυθμίσεις"}</button></div>
       <div class="swatches"><span class="swl">Χρώμα</span><button class="sw auto ${!m.color?"on":""}" data-col="" title="Αυτόματο (ανά γράμμα)" aria-label="Αυτόματο"></button>${SWATCHES.map(c=>`<button class="sw ${m.color===c?"on":""}" style="background:${c}" data-col="${c}" aria-label="${c}"></button>`).join("")}<input type="color" class="swc" data-mf="color" value="${m.color||"#2a6fdb"}" title="Δικό σου χρώμα"></div>
       <div class="actions slot"><button class="btn small danger" data-ma="del">Διαγραφή μηχανής</button></div></div>`;
   });
@@ -587,6 +603,7 @@ $("mach").addEventListener("click",async e=>{
   if(sw){const m=config.machines[+sw.closest("[data-i]").dataset.i]; if(sw.dataset.col) m.color=sw.dataset.col; else delete m.color; renderMach(); saveConfigSoon(); return;}
   const b=e.target.closest("[data-ma]"); if(!b) return;
   const i=+b.closest("[data-i]").dataset.i, ms=config.machines, a=b.dataset.ma;
+  if(a==="sets"){openSets(ms[i].id);return;}
   if(a==="up"&&i>0)[ms[i-1],ms[i]]=[ms[i],ms[i-1]];
   else if(a==="down"&&i<ms.length-1)[ms[i+1],ms[i]]=[ms[i],ms[i+1]];
   else if(a==="del"){b.closest(".slot").innerHTML=`<span class="confirm">Το ιστορικό της μένει. Σίγουρα; <button class="btn small danger" data-ma="del2">Ναι</button><button class="btn small" data-ma="cancel">Όχι</button></span>`;return;}
@@ -594,6 +611,47 @@ $("mach").addEventListener("click",async e=>{
   else if(a!=="cancel") return;
   renderMach(); saveConfigSoon();
 });
+
+// ---------- settings editor ----------
+let SE=null; // {mid, rows:[{k,v}]}
+function knownLabels(){
+  const set=new Set(["Sitz","Lehne","Beine","Loch","Polster","Schultern","Fuß","Knie","Sitzp.","Start","Stopp","Arme","Griffe","Kopf","Kurbel","BEW"]);
+  for(const m of config.machines) for(const {k} of getSets(m)) if(k) set.add(k);
+  return [...set];
+}
+function openSets(mid){const m=mById(mid);SE={mid,rows:getSets(m).map(x=>({...x}))};if(!SE.rows.length)SE.rows.push({k:"",v:""});renderSets();$("sov").classList.remove("hidden");}
+function renderSets(focusLast){
+  const m=mById(SE.mid);
+  let h=`<div class="sheet" style="${mstyle(m)}"><div class="row"><span class="badge">${esc(m.name)}</span><b style="font-size:18px">Ρυθμίσεις μηχανής</b></div>
+    <div class="settings">Όνομα ρύθμισης και τιμή. Το ίδιο όνομα έχει το ίδιο χρώμα σε όλες τις μηχανές.</div>`;
+  SE.rows.forEach((r,i)=>{h+=`<div class="srow" style="--sc:${setColor(r.k||"?")}"><input class="k" data-si="${i}" data-sf="k" value="${esc(r.k)}" placeholder="π.χ. Lehne"><input class="v" data-si="${i}" data-sf="v" value="${esc(r.v)}" placeholder="τιμή"><button class="btn small danger" data-sdel="${i}" aria-label="Διαγραφή">✕</button></div>`;});
+  h+=`<div class="settings" style="margin-top:14px">Γρήγορη προσθήκη:</div><div class="quick">${knownLabels().map(k=>`<button style="--sc:${setColor(k)}" data-sadd="${esc(k)}">+ ${esc(k)}</button>`).join("")}<button style="--sc:#64748b" data-sadd="">+ Δική σου</button></div>
+    <div class="actions" style="margin-top:16px"><button class="btn" data-sact="close">Άκυρο</button><button class="btn primary" data-sact="save">Αποθήκευση</button></div></div>`;
+  $("sov").innerHTML=h;
+  if(focusLast!=null){const el=$("sov").querySelector(`input[data-si="${focusLast.i}"][data-sf="${focusLast.f}"]`);if(el)el.focus();}
+}
+$("sov").addEventListener("input",e=>{
+  const i=e.target.dataset.si; if(i==null||!SE) return;
+  SE.rows[+i][e.target.dataset.sf]=e.target.value;
+  if(e.target.dataset.sf==="k") e.target.closest(".srow").style.setProperty("--sc",setColor(e.target.value||"?"));
+});
+$("sov").addEventListener("click",e=>{
+  if(!SE) return;
+  if(e.target.id==="sov"){closeSets();return;}
+  const d=e.target.closest("[data-sdel]"); if(d){SE.rows.splice(+d.dataset.sdel,1);renderSets();return;}
+  const a=e.target.closest("[data-sadd]");
+  if(a){const k=a.dataset.sadd;SE.rows=SE.rows.filter(r=>r.k||r.v);SE.rows.push({k,v:""});renderSets({i:SE.rows.length-1,f:k?"v":"k"});return;}
+  const b=e.target.closest("[data-sact]"); if(!b) return;
+  if(b.dataset.sact==="close"){closeSets();return;}
+  const m=config.machines.find(x=>x.id===SE.mid);
+  if(m){
+    m.sets=SE.rows.map(r=>({k:r.k.trim(),v:r.v.trim()})).filter(r=>r.k||r.v);
+    m.settings=m.sets.map(r=>r.k+(r.v?" "+r.v:"")).join(" · ");
+    saveConfigSoon(); toast(`${m.name}: ρυθμίσεις αποθηκεύτηκαν`);
+  }
+  closeSets(); renderAll();
+});
+function closeSets(){SE=null;$("sov").classList.add("hidden");$("sov").innerHTML="";}
 
 // ---------- stopwatch ----------
 const DEFAULT_PREP=10, DEFAULT_TIMER=120;
