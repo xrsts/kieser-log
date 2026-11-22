@@ -152,6 +152,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
 #sov .quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 #sov .quick button{border:1.5px solid color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 14%,transparent);color:var(--sc);border-radius:999px;padding:6px 12px;font-weight:700;cursor:pointer}
 @media (prefers-color-scheme:dark){#sov .quick button,#sov input.k{color:color-mix(in srgb,var(--sc) 60%,#fff)}}
+.sugbtn{border:1.5px solid currentColor;cursor:pointer;font-size:13px;padding:4px 10px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -352,8 +353,8 @@ function lastBefore(mid,date){
 function suggestion(last){
   if(!last) return null;
   const lb=+last.lb, sec=+last.sec;
-  if(sec>=120) return {kind:"up",lb:Math.max(lb+STEP_LB,r4(lb*1.05)),label:"↑ +5%"};
-  if(sec<90) return {kind:"down",lb:Math.max(0,Math.min(lb-STEP_LB,r4(lb*0.95))),label:"↓ −5%"};
+  if(sec>=120) return {kind:"up",lb:lb+STEP_LB,label:"↑ +4 lbs"};
+  if(sec<90) return {kind:"down",lb:Math.max(0,lb-STEP_LB),label:"↓ −4 lbs"};
   return {kind:"same",lb,label:"= ίδιο"};
 }
 function history(mid){
@@ -390,17 +391,17 @@ function renderTrain(){
   const done=list.filter(m=>sess.entries[m.id]).length;
   let h=`<div class="datebar"><input type="date" id="dateIn" value="${curDate}"><button class="btn small" id="todayBtn">Σήμερα</button></div>
   <div class="progress"><div class="t"><span>${fmtDate(curDate)}${sess.est?'<span class="est">≈ ημ/νία</span>':""}</span><span><b>${done}</b> / ${list.length} μηχανές</span></div><div class="bar"><i style="width:${list.length?done/list.length*100:0}%"></i></div></div>
-  <div class="tempo">Tempo 4-2-4-2 s · Στόχος 90–120 s · ≥120 s → +5% · &lt;90 s → −5%</div>`;
+  <div class="tempo">Tempo 4-2-4-2 s · Στόχος 90–120 s · ≥120 s → +4 lbs · &lt;90 s → −4 lbs</div>`;
   for(const m of list){
     const saved=sess.entries[m.id], last=lastBefore(m.id,curDate), sug=suggestion(last);
     const key=curDate+"|"+m.id;
-    const dr=drafts[key]||(saved?{...saved}:{lb:sug?sug.lb:"",sec:STD_SEC,note:""});
+    const dr=drafts[key]||(saved?{...saved}:{lb:last?last.lb:"",sec:STD_SEC,note:""});
     drafts[key]=dr;
     h+=`<div class="card m ${saved?"done":""}" data-mid="${esc(m.id)}" style="${mstyle(m)}">
       <div class="row"><span class="badge">${esc(m.name)}</span>${m.isNew&&!last&&!saved?'<span class="new">ΝΕΑ</span>':""}
         ${saved?'<span class="sug up" style="margin-left:auto">✓ καταχωρήθηκε</span>':""}</div>
       <div class="setrow">${settingsHTML(m)}<button class="btn small setedit" data-act="sets">${getSets(m).length?"✎":"+ Ρυθμίσεις"}</button></div>
-      <div class="last">${last?`Τελευταία: <b>${last.lb} lbs</b> <small>(${kg(last.lb)} kg)</small> · ${last.sec} s · ${fmtDate(last.date)}${sug?`<span class="sug ${sug.kind}">${sug.label} → ${sug.lb}</span>`:""}`:"Χωρίς ιστορικό ακόμα"}</div>
+      <div class="last">${last?`Τελευταία: <b>${last.lb} lbs</b> <small>(${kg(last.lb)} kg)</small> · ${last.sec} s · ${fmtDate(last.date)}${sug&&sug.kind!=="same"?`<button class="sug ${sug.kind} sugbtn" data-act="sug" data-lb="${sug.lb}">${sug.label} → ${sug.lb}</button>`:""}`:"Χωρίς ιστορικό ακόμα"}</div>
       <div class="inputs">
         <div class="field"><label>lbs</label><div class="stepper"><button data-act="lb-" aria-label="μείον 4">−</button><input inputmode="decimal" data-f="lb" value="${esc(dr.lb)}" placeholder="lbs"><button data-act="lb+" aria-label="συν 4">+</button></div><div class="kgsub" data-kg>${dr.lb!==""?kg(dr.lb)+" kg":""}</div></div>
         <div class="field"><label>Δευτερόλεπτα</label><div class="stepper"><button data-act="sec-" aria-label="μείον">−</button><input inputmode="numeric" data-f="sec" value="${esc(dr.sec)}"><button data-act="sec+" aria-label="συν">+</button></div></div>
@@ -429,6 +430,7 @@ $("train").addEventListener("click",async e=>{
   const mid=card.dataset.mid,key=curDate+"|"+mid,dr=drafts[key],act=b.dataset.act;
   if(act==="timer"){openTimer(mid);return;}
   if(act==="sets"){openSets(mid);return;}
+  if(act==="sug"){dr.lb=+b.dataset.lb;card.querySelector('input[data-f="lb"]').value=dr.lb;updKg(card,dr.lb);toast(`${mById(mid).name}: ${dr.lb} lbs`);return;}
   const step={"lb-":["lb",-STEP_LB],"lb+":["lb",STEP_LB],"sec-":["sec",-5],"sec+":["sec",5]}[act];
   if(step){
     const [f,d]=step, v=parseFloat(String(dr[f]).replace(",","."))||0;
@@ -753,11 +755,7 @@ $("tov").addEventListener("click",e=>{
     const el=(performance.now()-T.t0)/1000-T.prep, mid=T.mid;
     closeTimer();
     if(el<=0) return;
-    const sec=Math.floor(el), key=curDate+"|"+mid;
-    if(drafts[key]) drafts[key].sec=sec;
-    const card=document.querySelector(`#train .card[data-mid="${CSS.escape(mid)}"]`);
-    const inp=card&&card.querySelector('input[data-f="sec"]'); if(inp) inp.value=sec;
-    toast(`${mById(mid).name}: ${sec} s — πάτα Αποθήκευση`);
+    toast(`${mById(mid).name}: σταμάτησες στο ${mmss(el)}`);
   }
 });
 
