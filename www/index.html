@@ -114,6 +114,22 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
 .sw.auto{background:conic-gradient(var(--gA),var(--gB),var(--gD),var(--gG),var(--gE),var(--gF),var(--gC),var(--gA));}
 .swc{width:34px;height:30px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px;cursor:pointer}
 .swl{font-size:11px;color:var(--muted);margin-right:2px}
+.btn.tbtn{color:var(--gc,var(--accent));border-color:var(--gc,var(--accent));font-weight:800}
+#tov{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;text-align:center}
+#tov .tmach{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink2)}
+#tov .ringw{position:relative;width:min(78vw,320px);aspect-ratio:1}
+#tov .ringw svg{width:100%;height:100%;transform:rotate(-90deg)}
+#tov .big{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#tov .num{font-size:clamp(56px,20vw,96px);font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+#tov .lbl{font-size:14px;color:var(--muted);margin-top:6px}
+#tov.prep .num{color:var(--warn);font-size:clamp(90px,34vw,150px)}
+#tov.over .num{color:var(--good)}
+#tov .durs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+#tov .durs .chip{font-size:16px;padding:8px 16px}
+#tov .row2{display:flex;gap:10px;width:min(90vw,360px)}
+#tov .row2 .btn{flex:1;padding:14px;font-size:17px}
+.btn.go{background:var(--good);border-color:var(--good);color:#fff}
+@media (prefers-color-scheme:dark){.btn.go{color:#141413}}
 .hidden{display:none!important}
 </style>
 </head>
@@ -135,6 +151,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
   <section id="mach" class="hidden"></section>
   <div class="status" id="status">Φόρτωση…</div>
 </main>
+<div id="tov" class="hidden"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -344,6 +361,7 @@ function renderTrain(){
       </div>
       <input class="note" data-f="note" placeholder="Σημείωση (προαιρετικό)" value="${esc(dr.note||"")}">
       <div class="actions">
+        <button class="btn tbtn" data-act="timer" aria-label="Χρονόμετρο">⏱ Χρόνος</button>
         <button class="btn ${saved?"ok":"primary"}" data-act="save">${saved?"✓ Ενημέρωση":"Αποθήκευση"}</button>
         ${saved?'<button class="btn danger" data-act="unsave">Αφαίρεση</button>':""}
       </div>
@@ -363,6 +381,7 @@ $("train").addEventListener("click",async e=>{
   const b=e.target.closest("button[data-act]"); if(!b) return;
   const card=b.closest(".card"); if(!card) return;
   const mid=card.dataset.mid,key=curDate+"|"+mid,dr=drafts[key],act=b.dataset.act;
+  if(act==="timer"){openTimer(mid);return;}
   const step={"lb-":["lb",-STEP_LB],"lb+":["lb",STEP_LB],"sec-":["sec",-5],"sec+":["sec",5]}[act];
   if(step){
     const [f,d]=step, v=parseFloat(String(dr[f]).replace(",","."))||0;
@@ -548,6 +567,93 @@ $("mach").addEventListener("click",async e=>{
   else if(a==="del2") ms.splice(i,1);
   else if(a!=="cancel") return;
   renderMach(); saveConfigSoon();
+});
+
+// ---------- stopwatch ----------
+const PREP=5, DEFAULT_TIMER=120;
+let T=null, AC=null, tick=null, wake=null;
+function ac(){try{if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(C)AC=new C();}if(AC&&AC.state==="suspended")AC.resume();}catch(e){}return AC}
+function beep(freq,dur,when,vol){
+  const a=ac(); if(!a) return null;
+  const t=a.currentTime+when, o=a.createOscillator(), g=a.createGain();
+  o.type="square"; o.frequency.value=freq; vol=vol||0.22;
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.01);
+  g.gain.setValueAtTime(vol,t+Math.max(0.02,dur-0.03)); g.gain.linearRampToValueAtTime(0,t+dur);
+  o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  return o;
+}
+function mmss(sec){sec=Math.max(0,Math.floor(sec));return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0")}
+function openTimer(mid){T={mid,target:DEFAULT_TIMER,phase:"ready",nodes:[]};renderTimer();$("tov").classList.remove("hidden");}
+function renderTimer(){
+  const m=mById(T.mid), ov=$("tov");
+  ov.setAttribute("style",mstyle(m));
+  ov.className=T.phase==="prep"?"prep":"";
+  const R=46,C=2*Math.PI*R;
+  let h=`<div class="tmach"><span class="badge">${esc(m.name)}</span><span>Tempo 4-2-4-2 s</span></div>
+    <div class="ringw"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--line)" stroke-width="6"/>
+    <circle id="tring" cx="50" cy="50" r="${R}" fill="none" stroke="var(--gc)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg>
+    <div class="big"><div class="num" id="tnum">${T.phase==="ready"?mmss(T.target):""}</div><div class="lbl" id="tlbl">${T.phase==="ready"?"Στόχος":""}</div></div></div>`;
+  if(T.phase==="ready"){
+    h+=`<div class="durs">${[120,150,180].map(v=>`<button class="chip ${T.target===v?"on":""}" data-tdur="${v}">${mmss(v)}</button>`).join("")}</div>
+      <div class="durs"><button class="btn" data-tadj="-15">−15 s</button><button class="btn" data-tadj="15">+15 s</button></div>
+      <div class="row2"><button class="btn" data-tact="close">Κλείσιμο</button><button class="btn go" data-tact="start">▶ Έναρξη</button></div>`;
+  } else {
+    h+=`<div class="lbl" id="tsub"></div><div class="row2"><button class="btn danger" data-tact="cancel">Ακύρωση</button><button class="btn primary" data-tact="stop">■ Stop</button></div>`;
+  }
+  ov.innerHTML=h;
+}
+function startTimer(){
+  ac();
+  T.phase="prep"; T.t0=performance.now(); T.ended=false;
+  // 5-4-3-2-1 then GO, then beep-beep-beep when the target is reached (scheduled on the audio clock)
+  for(let i=0;i<PREP;i++) T.nodes.push(beep(880,0.15,i));
+  T.nodes.push(beep(1320,0.45,PREP,0.28));
+  [0,0.32,0.64].forEach(d=>T.nodes.push(beep(1050,0.22,PREP+T.target+d,0.3)));
+  try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(w=>wake=w).catch(()=>{})}catch(e){}
+  renderTimer(); updTimer();
+  tick=setInterval(updTimer,100);
+}
+function updTimer(){
+  if(!T||T.phase==="ready") return;
+  const el=(performance.now()-T.t0)/1000, ov=$("tov"), num=$("tnum"), lbl=$("tlbl"), sub=$("tsub"), ring=$("tring");
+  const C=2*Math.PI*46;
+  if(el<PREP){
+    ov.className="prep"; num.textContent=Math.ceil(PREP-el); lbl.textContent="Ετοιμάσου…"; sub.textContent=`Στόχος ${mmss(T.target)}`;
+    ring.style.strokeDashoffset=C*(1-(el/PREP));
+    return;
+  }
+  T.phase="run";
+  const s=el-PREP, over=s>=T.target;
+  ov.className=over?"over":"";
+  num.textContent=mmss(s);
+  lbl.textContent=over?"✓ Στόχος!":"−"+mmss(Math.ceil(T.target-s));
+  sub.textContent=over?"Συνέχισε μέχρι να μην μπορείς άλλο, μετά Stop":`Στόχος ${mmss(T.target)}`;
+  ring.style.strokeDashoffset=C*(1-Math.min(1,s/T.target));
+}
+function closeTimer(){
+  clearInterval(tick); tick=null;
+  if(T) for(const o of T.nodes){try{o&&o.stop(0)}catch(e){}}
+  try{wake&&wake.release()}catch(e){} wake=null;
+  T=null; $("tov").classList.add("hidden"); $("tov").innerHTML="";
+}
+$("tov").addEventListener("click",e=>{
+  if(!T) return;
+  const d=e.target.closest("[data-tdur]"); if(d){T.target=+d.dataset.tdur;renderTimer();return;}
+  const a=e.target.closest("[data-tadj]"); if(a){T.target=Math.max(30,Math.min(600,T.target+ +a.dataset.tadj));renderTimer();return;}
+  const b=e.target.closest("[data-tact]"); if(!b) return;
+  const act=b.dataset.tact;
+  if(act==="start") startTimer();
+  else if(act==="close"||act==="cancel") closeTimer();
+  else if(act==="stop"){
+    const el=(performance.now()-T.t0)/1000-PREP, mid=T.mid;
+    closeTimer();
+    if(el<=0) return;
+    const sec=Math.floor(el), key=curDate+"|"+mid;
+    if(drafts[key]) drafts[key].sec=sec;
+    const card=document.querySelector(`#train .card[data-mid="${CSS.escape(mid)}"]`);
+    const inp=card&&card.querySelector('input[data-f="sec"]'); if(inp) inp.value=sec;
+    toast(`${mById(mid).name}: ${sec} s — πάτα Αποθήκευση`);
+  }
 });
 
 function showTab(t){
