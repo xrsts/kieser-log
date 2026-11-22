@@ -130,6 +130,11 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
 #tov .row2 .btn{flex:1;padding:14px;font-size:17px}
 .btn.go{background:var(--good);border-color:var(--good);color:#fff}
 @media (prefers-color-scheme:dark){.btn.go{color:#141413}}
+.sets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.set{display:inline-flex;align-items:baseline;gap:6px;padding:5px 10px;border-radius:10px;border:1.5px solid color-mix(in srgb,var(--sc) 55%,transparent);background:color-mix(in srgb,var(--sc) 14%,transparent)}
+.set .k{font-size:14px;font-weight:700;color:var(--sc)}
+.set .v{font-size:20px;font-weight:900;color:var(--ink)}
+@media (prefers-color-scheme:dark){.set .k{color:color-mix(in srgb,var(--sc) 60%,#fff)}}
 .hidden{display:none!important}
 </style>
 </head>
@@ -337,6 +342,27 @@ function history(mid){
   return sortedDates().map(d=>{const e=sessions[d].entries[mid];return e?{date:d,est:sessions[d].est,...e}:null}).filter(e=>e&&e.lb!==""&&e.lb!=null);
 }
 
+// ---------- machine settings as coloured chips (same colour for the same setting on every machine) ----------
+const SET_COLORS={Sitz:"#2a6fdb",Lehne:"#e07a1f",Beine:"#2f9e44",Loch:"#d63384",Polster:"#7b4fd6",Schultern:"#0e9f8f",
+  "Fuß":"#a16207",Fuss:"#a16207",Knie:"#d1342f",Sitzp:"#0ea5e9",Start:"#65a30d",Stopp:"#e11d48",Arme:"#c026d3",Armp:"#c026d3",
+  Griffe:"#4f46e5",Kopf:"#b45309",Kurbel:"#64748b",BEW:"#0891b2"};
+const SET_FALLBACK=["#0f766e","#9333ea","#ca8a04","#be123c","#1d4ed8","#15803d"];
+function setColor(label){
+  const key=label.split(/\s+/)[0].replace(/\.$/,"");
+  if(SET_COLORS[key]) return SET_COLORS[key];
+  let h=0; for(const c of key.toLowerCase()) h=(h*31+c.charCodeAt(0))>>>0;
+  return SET_FALLBACK[h%SET_FALLBACK.length];
+}
+function settingsHTML(str){
+  if(!str||!str.trim()) return "";
+  const parts=str.split(/\s*[·;,\n]\s*/).map(x=>x.trim()).filter(Boolean);
+  return `<div class="sets">${parts.map(p=>{
+    const i=p.lastIndexOf(" ");
+    const k=i>0?p.slice(0,i):p, v=i>0?p.slice(i+1):"";
+    return `<span class="set" style="--sc:${setColor(k)}"><span class="k">${esc(k)}</span>${v?`<span class="v">${esc(v)}</span>`:""}</span>`;
+  }).join("")}</div>`;
+}
+
 // ---------- training ----------
 function renderTrain(){
   const sess=sessions[curDate]||{entries:{}};
@@ -353,7 +379,7 @@ function renderTrain(){
     h+=`<div class="card m ${saved?"done":""}" data-mid="${esc(m.id)}" style="${mstyle(m)}">
       <div class="row"><span class="badge">${esc(m.name)}</span>${m.isNew&&!last&&!saved?'<span class="new">ΝΕΑ</span>':""}
         ${saved?'<span class="sug up" style="margin-left:auto">✓ καταχωρήθηκε</span>':""}</div>
-      ${m.settings?`<div class="settings">${esc(m.settings)}</div>`:""}
+      ${settingsHTML(m.settings)}
       <div class="last">${last?`Τελευταία: <b>${last.lb} lbs</b> <small>(${kg(last.lb)} kg)</small> · ${last.sec} s · ${fmtDate(last.date)}${sug?`<span class="sug ${sug.kind}">${sug.label} → ${sug.lb}</span>`:""}`:"Χωρίς ιστορικό ακόμα"}</div>
       <div class="inputs">
         <div class="field"><label>lbs</label><div class="stepper"><button data-act="lb-" aria-label="μείον 4">−</button><input inputmode="decimal" data-f="lb" value="${esc(dr.lb)}" placeholder="lbs"><button data-act="lb+" aria-label="συν 4">+</button></div><div class="kgsub" data-kg>${dr.lb!==""?kg(dr.lb)+" kg":""}</div></div>
@@ -418,7 +444,7 @@ function renderHist(){
     if(!histMachine||!ms.find(m=>m.id===histMachine)) histMachine=(ms.find(m=>history(m.id).length)||ms[0]).id;
     h+=`<div class="chips">${ms.map(m=>`<button class="chip ${m.id===histMachine?"on":""}" style="${mstyle(m)}" data-hmach="${esc(m.id)}">${esc(m.name)}</button>`).join("")}</div>`;
     const m=mById(histMachine), hs=history(histMachine);
-    h+=`<div class="card m" style="${mstyle(m)}"><div class="row"><span class="badge">${esc(m.name)}</span></div>${m.settings?`<div class="settings">${esc(m.settings)}</div>`:""}`;
+    h+=`<div class="card m" style="${mstyle(m)}"><div class="row"><span class="badge">${esc(m.name)}</span></div>${settingsHTML(m.settings)}`;
     if(!hs.length) h+=`<div class="empty">Καμία καταχώρηση για ${esc(m.name)}</div></div>`;
     else{
       const f=hs[0],l=hs[hs.length-1],pct=f.lb?Math.round((l.lb-f.lb)/f.lb*100):0;
@@ -570,7 +596,7 @@ $("mach").addEventListener("click",async e=>{
 });
 
 // ---------- stopwatch ----------
-const PREP=5, DEFAULT_TIMER=120;
+const DEFAULT_PREP=10, DEFAULT_TIMER=120;
 let T=null, AC=null, tick=null, wake=null;
 function ac(){try{if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(C)AC=new C();}if(AC&&AC.state==="suspended")AC.resume();}catch(e){}return AC}
 function beep(freq,dur,when,vol){
@@ -583,7 +609,7 @@ function beep(freq,dur,when,vol){
   return o;
 }
 function mmss(sec){sec=Math.max(0,Math.floor(sec));return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0")}
-function openTimer(mid){T={mid,target:DEFAULT_TIMER,phase:"ready",nodes:[]};renderTimer();$("tov").classList.remove("hidden");}
+function openTimer(mid){T={mid,target:DEFAULT_TIMER,prep:DEFAULT_PREP,phase:"ready",nodes:[]};renderTimer();$("tov").classList.remove("hidden");}
 function renderTimer(){
   const m=mById(T.mid), ov=$("tov");
   ov.setAttribute("style",mstyle(m));
@@ -596,6 +622,8 @@ function renderTimer(){
   if(T.phase==="ready"){
     h+=`<div class="durs">${[120,150,180].map(v=>`<button class="chip ${T.target===v?"on":""}" data-tdur="${v}">${mmss(v)}</button>`).join("")}</div>
       <div class="durs"><button class="btn" data-tadj="-15">−15 s</button><button class="btn" data-tadj="15">+15 s</button></div>
+      <div class="lbl">Αντίστροφη μέτρηση πριν την έναρξη</div>
+      <div class="durs">${[3,5,10,15,20].map(v=>`<button class="chip ${T.prep===v?"on":""}" data-tprep="${v}">${v} s</button>`).join("")}</div>
       <div class="row2"><button class="btn" data-tact="close">Κλείσιμο</button><button class="btn go" data-tact="start">▶ Έναρξη</button></div>`;
   } else {
     h+=`<div class="lbl" id="tsub"></div><div class="row2"><button class="btn danger" data-tact="cancel">Ακύρωση</button><button class="btn primary" data-tact="stop">■ Stop</button></div>`;
@@ -606,9 +634,11 @@ function startTimer(){
   ac();
   T.phase="prep"; T.t0=performance.now(); T.ended=false;
   // 5-4-3-2-1 then GO, then beep-beep-beep when the target is reached (scheduled on the audio clock)
-  for(let i=0;i<PREP;i++) T.nodes.push(beep(880,0.15,i));
-  T.nodes.push(beep(1320,0.45,PREP,0.28));
-  [0,0.32,0.64].forEach(d=>T.nodes.push(beep(1050,0.22,PREP+T.target+d,0.3)));
+  const P=T.prep;
+  // a beep on each of the last 5 seconds (and at the very start of a longer countdown), then GO
+  for(let i=0;i<P;i++) if(i===0||P-i<=5) T.nodes.push(beep(880,0.15,i));
+  T.nodes.push(beep(1320,0.45,P,0.28));
+  [0,0.32,0.64].forEach(d=>T.nodes.push(beep(1050,0.22,P+T.target+d,0.3)));
   try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(w=>wake=w).catch(()=>{})}catch(e){}
   renderTimer(); updTimer();
   tick=setInterval(updTimer,100);
@@ -617,6 +647,7 @@ function updTimer(){
   if(!T||T.phase==="ready") return;
   const el=(performance.now()-T.t0)/1000, ov=$("tov"), num=$("tnum"), lbl=$("tlbl"), sub=$("tsub"), ring=$("tring");
   const C=2*Math.PI*46;
+  const PREP=T.prep;
   if(el<PREP){
     ov.className="prep"; num.textContent=Math.ceil(PREP-el); lbl.textContent="Ετοιμάσου…"; sub.textContent=`Στόχος ${mmss(T.target)}`;
     ring.style.strokeDashoffset=C*(1-(el/PREP));
@@ -638,6 +669,7 @@ function closeTimer(){
 }
 $("tov").addEventListener("click",e=>{
   if(!T) return;
+  const pp=e.target.closest("[data-tprep]"); if(pp){T.prep=+pp.dataset.tprep;renderTimer();return;}
   const d=e.target.closest("[data-tdur]"); if(d){T.target=+d.dataset.tdur;renderTimer();return;}
   const a=e.target.closest("[data-tadj]"); if(a){T.target=Math.max(30,Math.min(600,T.target+ +a.dataset.tadj));renderTimer();return;}
   const b=e.target.closest("[data-tact]"); if(!b) return;
@@ -645,7 +677,7 @@ $("tov").addEventListener("click",e=>{
   if(act==="start") startTimer();
   else if(act==="close"||act==="cancel") closeTimer();
   else if(act==="stop"){
-    const el=(performance.now()-T.t0)/1000-PREP, mid=T.mid;
+    const el=(performance.now()-T.t0)/1000-T.prep, mid=T.mid;
     closeTimer();
     if(el<=0) return;
     const sec=Math.floor(el), key=curDate+"|"+mid;
