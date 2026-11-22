@@ -115,7 +115,12 @@ textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:v
 .swc{width:34px;height:30px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px;cursor:pointer}
 .swl{font-size:11px;color:var(--muted);margin-right:2px}
 .btn.tbtn{color:var(--gc,var(--accent));border-color:var(--gc,var(--accent));font-weight:800}
-#tov{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;text-align:center}
+#tov{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:safe center;overflow-y:auto;padding:20px;gap:12px;text-align:center}
+#tov.ready .ringw{width:min(52vw,220px)}
+#tov.ready .num{font-size:clamp(44px,14vw,64px)}
+#tov.ready .durs .chip{font-size:14px;padding:6px 10px}
+#tov.ready .durs{gap:5px;flex-wrap:nowrap}
+#tov.ready .lbl{margin-top:2px}
 #tov .tmach{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink2)}
 #tov .ringw{position:relative;width:min(78vw,320px);aspect-ratio:1}
 #tov .ringw svg{width:100%;height:100%;transform:rotate(-90deg)}
@@ -666,20 +671,25 @@ function beep(freq,dur,when,vol){
   o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
   return o;
 }
+function tcfg(){if(!config.timer)config.timer={every:30,warn:15};return config.timer}
 function mmss(sec){sec=Math.max(0,Math.floor(sec));return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0")}
 function openTimer(mid){T={mid,target:DEFAULT_TIMER,prep:DEFAULT_PREP,phase:"ready",nodes:[]};renderTimer();$("tov").classList.remove("hidden");}
 function renderTimer(){
   const m=mById(T.mid), ov=$("tov");
   ov.setAttribute("style",mstyle(m));
-  ov.className=T.phase==="prep"?"prep":"";
+  ov.className=T.phase==="prep"?"prep":T.phase==="ready"?"ready":"";
   const R=46,C=2*Math.PI*R;
   let h=`<div class="tmach"><span class="badge">${esc(m.name)}</span><span>Tempo 4-2-4-2 s</span></div>
     <div class="ringw"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--line)" stroke-width="6"/>
     <circle id="tring" cx="50" cy="50" r="${R}" fill="none" stroke="var(--gc)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg>
-    <div class="big"><div class="num" id="tnum">${T.phase==="ready"?mmss(T.target):""}</div><div class="lbl" id="tlbl">${T.phase==="ready"?"Στόχος":""}</div></div></div>`;
+    <div class="big"><div class="num" id="tnum">${T.phase==="ready"?mmss(T.target):""}</div><div class="lbl" id="tlbl">${T.phase==="ready"?"Στόχος · 3× beep":""}</div></div></div>`;
   if(T.phase==="ready"){
     h+=`<div class="durs">${[120,150,180].map(v=>`<button class="chip ${T.target===v?"on":""}" data-tdur="${v}">${mmss(v)}</button>`).join("")}</div>
       <div class="durs"><button class="btn" data-tadj="-15">−15 s</button><button class="btn" data-tadj="15">+15 s</button></div>
+      <div class="lbl">1× beep κάθε</div>
+      <div class="durs">${[0,15,20,30,45,60].map(v=>`<button class="chip ${tcfg().every===v?"on":""}" data-tevery="${v}">${v?v+" s":"Off"}</button>`).join("")}</div>
+      <div class="lbl">2× beep πριν το τέλος${tcfg().warn&&T.target>tcfg().warn?` (στο ${mmss(T.target-tcfg().warn)})`:""}</div>
+      <div class="durs">${[0,5,10,15,20,30].map(v=>`<button class="chip ${tcfg().warn===v?"on":""}" data-twarn="${v}">${v?v+" s":"Off"}</button>`).join("")}</div>
       <div class="lbl">Αντίστροφη μέτρηση πριν την έναρξη</div>
       <div class="durs">${[3,5,10,15,20].map(v=>`<button class="chip ${T.prep===v?"on":""}" data-tprep="${v}">${v} s</button>`).join("")}</div>
       <div class="row2"><button class="btn" data-tact="close">Κλείσιμο</button><button class="btn go" data-tact="start">▶ Έναρξη</button></div>`;
@@ -697,6 +707,9 @@ function startTimer(){
   for(let i=0;i<P;i++) if(i===0||P-i<=5) T.nodes.push(beep(880,0.15,i));
   T.nodes.push(beep(1320,0.45,P,0.28));
   [0,0.32,0.64].forEach(d=>T.nodes.push(beep(1050,0.22,P+T.target+d,0.3)));
+  const {every,warn}=tcfg(), wt=warn?T.target-warn:-1;
+  if(wt>0) [0,0.3].forEach(d=>T.nodes.push(beep(990,0.18,P+wt+d,0.28)));
+  if(every) for(let t=every;t<T.target;t+=every) if(Math.abs(t-wt)>1) T.nodes.push(beep(880,0.18,P+t,0.25));
   try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(w=>wake=w).catch(()=>{})}catch(e){}
   renderTimer(); updTimer();
   tick=setInterval(updTimer,100);
@@ -727,6 +740,8 @@ function closeTimer(){
 }
 $("tov").addEventListener("click",e=>{
   if(!T) return;
+  const te=e.target.closest("[data-tevery]"); if(te){tcfg().every=+te.dataset.tevery;saveConfigSoon();renderTimer();return;}
+  const tw=e.target.closest("[data-twarn]"); if(tw){tcfg().warn=+tw.dataset.twarn;saveConfigSoon();renderTimer();return;}
   const pp=e.target.closest("[data-tprep]"); if(pp){T.prep=+pp.dataset.tprep;renderTimer();return;}
   const d=e.target.closest("[data-tdur]"); if(d){T.target=+d.dataset.tdur;renderTimer();return;}
   const a=e.target.closest("[data-tadj]"); if(a){T.target=Math.max(30,Math.min(600,T.target+ +a.dataset.tadj));renderTimer();return;}
